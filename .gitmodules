@@ -1,0 +1,3 @@
+[submodule "GTree"]
+	path = GTree
+	url = https://github.com/TsinghuaDatabaseGroup/GTree.git
