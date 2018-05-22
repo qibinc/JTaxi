@@ -8,13 +8,9 @@
 #include<algorithm>
 #include<map>
 #include<cmath>
-#include<cassert>
 #include<queue>
 #include<sys/time.h>
 #include<metis.h>
-
-#include "Comm.h"
-
 int times[10];//辅助计时变量；
 int cnt_type0,cnt_type1;
 
@@ -23,8 +19,8 @@ const bool DEBUG_=false;
 const bool Optimization_G_tree_Search=true;//是否开启全连接加速算法
 const bool Optimization_KNN_Cut=true;//是否开启KNN剪枝查询算法
 const bool Optimization_Euclidean_Cut=false;//是否开启Catch查询中基于欧几里得距离剪枝算法
-const char Edge_File[]="../data/road.nedge";//第一行两个整数n,m表示点数和边数，接下来m行每行三个整数U,V,C表示U->V有一条长度为C的边
-const char Node_File[]="../data/road.cnode";//共N行每行一个整数两个实数id,x,y表示id结点的经纬度(但输入不考虑id，只顺序从0读到n-1，整数N在Edge文件里)
+const char Edge_File[]="COL.edge";//第一行两个整数n,m表示点数和边数，接下来m行每行三个整数U,V,C表示U->V有一条长度为C的边
+const char Node_File[]="NY_.co";//共N行每行一个整数两个实数id,x,y表示id结点的经纬度(但输入不考虑id，只顺序从0读到n-1，整数N在Edge文件里)
 const int Global_Scheduling_Cars_Per_Request=30000000;//每次规划精确计算前至多保留的车辆数目(时间开销)
 const double Unit=0.1;//路网文件的单位长度/m
 const double R_earth=6371000.0;//地球半径，用于输入经纬度转化为x,y坐标
@@ -33,7 +29,7 @@ const int Partition_Part=4;//K叉树
 long long Additional_Memory=0;//用于构建辅助矩阵的额外空间(int)
 const int Naive_Split_Limit=33;//子图规模小于该数值全划分
 const int INF=0x3fffffff;//无穷大常量
-const bool RevE=true;//false代表有向图，true代表无向图读入边复制反向一条边
+const bool RevE=false;//false代表有向图，true代表无向图读入边复制反向一条边
 const bool Distance_Offset=false;//KNN是否考虑车辆距离结点的修正距离
 const bool DEBUG1=false;
 #define TIME_TICK_START gettimeofday( &tv, NULL ); ts = tv.tv_sec * 100000 + tv.tv_usec / 10;
@@ -345,11 +341,11 @@ struct Graph//无向图结构
 			idx_t nvtxs=n;
 			idx_t ncon=1;
 			//transform
-			int *xadj = (int*) new idx_t[n + 1];
-			int *adj =(int*)new idx_t[n+1];
-			int *adjncy = (int*)new idx_t[tot-1];
-			int *adjwgt = (int*)new idx_t[tot-1];
-			int *part = (int*)new idx_t[n];
+			int *xadj = new idx_t[n + 1];
+			int *adj=new idx_t[n+1];
+			int *adjncy = new idx_t[tot-1];
+			int *adjwgt = new idx_t[tot-1];
+			int *part = new idx_t[n];
 
 
 			int xadj_pos = 1;
@@ -579,11 +575,11 @@ struct Graph//无向图结构
 		idx_t nvtxs=n;
 		idx_t ncon=1;
 		vector<int>color(n);
-		int *xadj = (int*) new idx_t[n + 1];
-		int *adj = (int*) new idx_t[n+1];
-		int *adjncy = (int*) new idx_t[tot-1];
-		int *adjwgt = (int*) new idx_t[tot-1];
-		int *part = (int*) new idx_t[n];
+		int *xadj = new idx_t[n + 1];
+		int *adj=new idx_t[n+1];
+		int *adjncy = new idx_t[tot-1];
+		int *adjwgt = new idx_t[tot-1];
+		int *part = new idx_t[n];
 
 
 		int xadj_pos = 1;
@@ -2384,8 +2380,8 @@ void read()
 	{
 		//int temp;
 		fscanf(in,"%d %d %d\n",&j,&k,&l);
-		if(RevE==false)G.add_D(j,k,l);//单向边
-		else G.add(j,k,l);//双向边
+		if(RevE==false)G.add_D(j-1,k-1,l);//单向边
+		else G.add(j-1,k-1,l);//双向边
 	}
 	cout<<"correct4"<<endl;
 	fclose(in);
@@ -2661,418 +2657,32 @@ class Global_Scheduling//依托于G_Tree的全局调度算法，主要处理拼�
 		vector<vehicle>cars;
 }scheduling;
 
-struct Edge
-{
-	int to, c;
-	Edge* next;
-};
-vector<Edge*> eH;
-
-void addEdge(int a, int b, int c)
-{
-	Edge* now = new Edge;
-	now->to = b, now->c = c;
-	now->next = eH[a], eH[a] = now;
-}
-
-vector<double> clngt, clat;
-
-void loadNode()
-{
-	ifstream fin("../data/road.cnode");
-
-	clngt.clear();
-	clat.clear();
-	int id;
-	double x, y;
-	while (fin >> id >> x >> y) {
-		clngt.push_back(x);
-		clat.push_back(y);
-	}
-
-	fin.close();
-}
-
-void loadEdge()
-{
-	ifstream fin("../data/road.nedge");
-
-	int n, m;
-	fin >> n >> m;
-
-	eH.resize(n);
-	for (int i = 0; i < n; ++ i) {
-		eH[i] = NULL;
-	}
-
-	for (int i = 0; i < m; ++ i) {
-		int a, b, c;
-		fin >> a >> b >> c;
-		addEdge(a, b, c);
-		addEdge(b, a, c);
-	}
-
-	fin.close();
-}
-
-void findBestPath(vector<int> & passenger, int step, vector<bool> & v, int & ans, int last, int sum)
-{
-	if (sum >= ans) {
-		return ;
-	}
-	int n = passenger.size();
-	if (step == n) {
-		ans = sum;
-	}
-	else {
-		for (int i = 0; i < n; ++ i) {
-			if (!v[i]) {
-				v[i] = true;
-				int x = passenger[i];
-				int delta = tree.search_catch(last, x);				
-				findBestPath(passenger, step + 1, v, ans, x, sum + delta);
-				v[i] = false;
-			}
-		}
-	}
-}
-
-void findBestPath(vector<int> & passenger, int step, vector<bool> & v, 
-	int & ans, int last, int sum, vector<int> & route, vector<int> & ans_route)
-{
-	if (sum >= ans) {
-		return ;
-	}
-	int n = passenger.size();
-	if (step == n) {
-		ans = sum;
-		for (int i = 0; i < n; ++ i) 
-			ans_route[i] = route[i];
-	}
-	else {
-		for (int i = 0; i < n; ++ i) {
-			if (!v[i]) {
-				v[i] = true;
-				int x = passenger[i];
-				route[step] = x;
-				int delta = tree.search_catch(last, x);				
-				findBestPath(passenger, step + 1, v, ans, x, sum + delta, route, ans_route);
-				v[i] = false;
-			}
-		}
-	}
-}
-
-vector<vector<int> > passenger;
-vector<int> taxi;
-vector<int> D1;
-vector<vector<int> > node_list;
-
-void loadCars()
-{
-	cout << "load_cars begin" << endl;
-	int n = eH.size();
-	node_list.resize(n);
-	for (int i = 0; i < n; ++ i) {
-		node_list[i].clear();
-	}
-
-	ifstream fin("../data/car.txt");
-
-	int id, m;
-	while (fin >> id) {
-		fin >> m;
-		char c;
-		double x, y;
-		int k;
-
-		fin >> x >> c >> y >> c >> k;
-		taxi.push_back(k);
-
-		vector<int> now_pass(m, 0);
-		for (int i = 0; i < m; ++ i) {
-			fin >> x >> c >> y >> c >> k;
-			now_pass[i] = k;
-		}
-		passenger.push_back(now_pass);
-	}
-
-	fin.close();
-	m = taxi.size();
-	
-	// save
-	// D1.clear();
-	// cout << "Begin Calculation" << endl;
-	// ofstream fout("Car.data");
-	// for (int i = 0; i < n; ++ i) {
-	// 	cout << i << endl;
-	// 	vector<bool> v(10, false);
-	// 	int res = 1000000000;
-	// 	findBestPath(passenger[i], 0, v, res, taxi[i], 0);
-	// 	D1.push_back(res);
-	// 	fout << res << endl;
-	// }
-	// fout.close();
-
-	// load
-	D1.clear();
-	ifstream fin2("Car.data");
-	for (int i = 0; i < m; ++ i) {
-		int x;
-		fin2 >> x;
-		D1.push_back(x);
-		node_list[taxi[i]].push_back(i);
-	}
-	fin2.close();
-
-	cout << "load_cars end" << endl;
-}
-
-vector<int> searchTaxi(int S, int T, int K)
-{
-	int D4 = tree.search(S, T);
-	vector<bool> v(eH.size(), false);
-
-	vector<int> ans;
-	ans.clear();
-	int taxi_cnt = taxi.size();
-
-	queue<int> Q;
-	while (!Q.empty()) Q.pop();
-
-	Q.push(S);
-	v[S] = true;
-
-	cout << "begin bfs" << endl;
-
-	while (!Q.empty()) {
-		int x = Q.front();
-		Q.pop();
-
-		int D2 = tree.search(x, S);
-		assert(x < node_list.size());
-		int t = node_list[x].size();
-		for (int j = 0; j < t; ++ j) {
-			int i = node_list[x][j];
-			int D3 = 1000000000;
-			vector<bool> vis(10, false);
-			vector<int> now_pass = passenger[i];
-			now_pass.push_back(T);
-			findBestPath(now_pass, 0, vis, D3, S, 0);
-			if (D3 - D4 > 10000) continue;
-			if (D1[i] > 0 && D2 + D3 - D1[i] > 10000) continue;
-			ans.push_back(i);
-			if (ans.size() >= K)
-				break;
-		}
-		if (ans.size() >= K)
-			break;
-
-		for (Edge *e = eH[x]; e != NULL; e = e->next) {
-			if (!v[e->to] && e->c + D2 <= 10000) {
-				v[e->to] = true;
-				Q.push(e->to);
-			}
-		}
-	}
-	cout << "Taxi searching finish." << endl;
-	return ans;
-}
-
-int getClose(double mp_lngt1, double tmp_lat1, double & start_lngt, double & start_lat)
-{
-	double min_dis = 10000000.;
-	int n = clngt.size();
-	int res = -1; 
-	for (int i = 0; i < n; ++ i) {
-		double now_dis = Distance_(mp_lngt1, tmp_lat1, clngt[i], clat[i]);
-		if (now_dis < min_dis) {
-			min_dis = now_dis;
-			start_lngt = clngt[i];
-			start_lat = clat[i];
-			res = i;
-		}
-	}
-	return res;
-}
-
-void completePath(vector<int> &node, vector<int> &res)
-{
-	// cout << "Func: CompletePath" << endl;
-	// cout << "node size: " << node.size() << endl;
-	res.clear();
-
-	// cout << "pushed first node" << endl;
-	vector<int> tmp;
-	for (int i = 0; i + 1 < node.size(); ++ i) {
-		tmp.clear();
-		// cout << "Begin Find path: " << node[i] << " " << node[i + 1] << endl;
-		tree.find_path(node[i], node[i + 1], tmp);
-		// cout << "find path finish." << endl;
-		
-		for (int j = 0; j < tmp.size(); ++ j) {
-			res.push_back(tmp[j]);
-		}
-	}
-	if (node.size() > 0) {
-		res.push_back(node[node.size() - 1]);
-	}
-}
-
-void runServer()
-{
-	int start_no = 2345, dest_no = 2346;
-	double tmp_lngt1, tmp_lat1, tmp_lngt2, tmp_lat2;
-    double start_lngt, start_lat, dest_lngt, dest_lat; 
-
-    int serverSock = initSocket();
-    char revBuf[MAX_NUM]={0};
-    char sedBuf[MAX_NUM]={0};
-    string revMsg;
-    while(1)
-    {
-        int clientSock = accept(serverSock, NULL, NULL);
-		cout << "client found." << endl;
-        while(1) {
-            if(read(clientSock,revBuf,MAX_NUM) != -1) {
-                revMsg = revBuf;
-            } else {
-                break;
-            }
-
-            cout << revMsg << endl;
-			if (revMsg.size() < 4) break;
-
-            parseData(revMsg, tmp_lngt1, tmp_lat1, tmp_lngt2, tmp_lat2);
-
-            cout << tmp_lngt1 << "," << tmp_lat1 << endl;
-            cout << tmp_lngt2 << "," << tmp_lat2 << endl;
-
-            start_no = getClose(tmp_lngt1, tmp_lat1, start_lngt, start_lat);
-            dest_no = getClose(tmp_lngt2, tmp_lat2, dest_lngt, dest_lat);
-
-			cout << "start node: " << start_lngt << "," << start_lat << endl;
-            cout << "dest node: " << dest_lngt << "," << dest_lat << endl;
-
-            cout << "road_net_no:" << endl;
-            cout << start_no << " " << dest_no << endl;
-			vector<int> canTaxi;
-			canTaxi = searchTaxi(start_no, dest_no, 6);
-			int m = canTaxi.size();
-			cout << m << " Taxis found." << endl;
-			string tmpSed = "";
-
-			for (int i = 0; i < m; ++ i) {
-				int x = canTaxi[i];
-				cout << "Taxi: " << x << endl;
-				vector<int> now_pass = passenger[x];
-				now_pass.push_back(dest_no);
-				cout << "now_pass: " << now_pass.size() << endl;
-
-				cout << "passenger: ";
-				for (int i = 0; i < now_pass.size(); ++ i)
-					cout << clngt[now_pass[i]] << " " << clat[now_pass[i]] << " ";
-				cout << endl;
-	
-				vector<int> route(now_pass.size()), res_route(now_pass.size());
-				vector<bool> v(10, false);
-				int ans = 100000000;
-				findBestPath(now_pass, 0, v, ans, start_no, 0, route, res_route);
-				cout << "Best Path:" << ans << endl;
-
-				cout << "res_route: ";
-				for (int i = 0; i < res_route.size(); ++ i)
-					cout << clngt[res_route[i]] << " " << clat[res_route[i]] << " ";
-				cout << endl;
-
-				res_route.push_back(0);
-				for(int i = res_route.size() - 1; i >= 1; -- i) res_route[i] = res_route[i - 1];
-				res_route[0] = start_no;
-				res_route.push_back(0);
-				for(int i = res_route.size() - 1; i >= 1; -- i) res_route[i] = res_route[i - 1];
-				res_route[0] = taxi[x];
-				cout << "res_route: " << res_route.size() << endl;
-				vector<int> ans_route;
-				completePath(res_route, ans_route);
-				cout << "ans_route: ";
-				for (int i = 0; i < ans_route.size(); ++ i)
-					cout << clngt[ans_route[i]] << " " << clat[ans_route[i]];
-				cout << endl;
-
-				vector<double> lngt;
-				vector<double> lat;
-				for (int j = 0; j < ans_route.size(); ++ j) {
-					lngt.push_back(clngt[ans_route[j]]);
-					lat.push_back(clat[ans_route[j]]);
-				}
-				string nowSed = codeData(lngt, lat);
-				tmpSed = tmpSed + nowSed;
-			}
-
-            for (int i = 0; i <= tmpSed.size(); ++ i) {
-				sedBuf[i] = (i == tmpSed.size()) ? 0 : tmpSed[i];
-			}
-            if (write(clientSock, sedBuf, sizeof(sedBuf)) == -1) {
-                printf("Send error!\n");
-            }
-            bzero(revBuf,sizeof(revBuf));
-            bzero(sedBuf,sizeof(sedBuf));
-        }
-        close(clientSock);
-    }
-    close(serverSock);
-}
-
 int main()
 {
-	// TIME_TICK_START
-	// init();
-	// read();
-	// Additional_Memory=2*G.n*log2(G.n);
-	// printf("G.real_border:%d\n",G.real_node());
-	// tree.build();
-    // TIME_TICK_END
-	// TIME_TICK_PRINT("build")
-	// load();
-	// save();
-	// {
-	// 	TIME_TICK_START
-	// 	for(int i=0;i<10000;i++)
-	// 	{
-	// 		int S=rand()%G.n;
-	// 		int T=rand()%G.n;
-    //  		int dis=tree.search(S,T);
-	// 	}
-    //  	TIME_TICK_END
-    // 	TIME_TICK_PRINT("p2p-SEARCH:")
-	// }
-	// vector<int> ans;
+	TIME_TICK_START
+	init();
+	read();
+	Additional_Memory=2*G.n*log2(G.n);
+	printf("G.real_border:%d\n",G.real_node());
+	tree.build();
+    TIME_TICK_END
+		TIME_TICK_PRINT("build")
+		//load();
+		save();
+	//	cout << "root-part=" << rootp << endl;
 	
-	load();
-	cout << "GPTree load end" <<endl;
-	loadNode();
-	loadEdge();
-	loadCars();
-
-	// {
-	// 	cout << "Test Begin" << endl;
-	// 	TIME_TICK_START
-	// 	for(int i=0;i<100;i++)
-	// 	{
-	// 		int S=rand()%G.n;
-	// 		int T=rand()%G.n;
-	// 		vector<int> ans=SearchTaxi(S, T, 5);
-	// 		for (int i = 0; i < ans.size(); ++ i) {
-	// 			printf("%d%c", ans[i], (i == ans.size() - 1) ? '\n' : ' ');
-	// 		}
-
-	// 	}
-    //  	TIME_TICK_END
-    // 	TIME_TICK_PRINT("Find Taxi:")
-	// }
-
-	runServer();
-	
+	{
+		TIME_TICK_START
+		for(int i=0;i<10000;i++)
+		{
+			int S=rand()%G.n;
+			int T=rand()%G.n;
+     		int dis=tree.search(S,T);
+		}
+     	TIME_TICK_END
+    	TIME_TICK_PRINT("p2p-SEARCH:")
+	}
+	vector<int> ans;
 
     return 0;
 }
