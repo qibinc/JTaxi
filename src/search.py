@@ -1,6 +1,7 @@
 from pprint import pprint
 import numpy as np
 from api import *
+
 NODE_FILE = '../data/road.cnode'
 EDGE_FILE = '../data/road.nedge'
 CAR_FILE = '../data/car.txt'
@@ -23,31 +24,19 @@ def load_nodes():
     return geo.shape[0], geo
 
 
-def load_edges():
-    lines = read_lines(EDGE_FILE)
-    assert int(lines[0].split()[1]) == len(lines) - 1
-    lines = lines[1:]
-    edges = [[] for i in range(N_NODES)]
-    for i, line in enumerate(lines):
-        fr, to, w = [int(num) for num in line.split()]
-        edges[fr].append((to, w))
-    return edges
-
-
 N_NODES, nodes_geo = load_nodes()
-nodes_inout_edges = load_edges()
 
 
 def load_taxis():
     lines = read_lines(CAR_FILE)
     N_TAXIS = len(lines)
-    taxi_pos = np.zeros(N_TAXIS, dtype=int)
+    taxi_pos = []
     taxi_passengers_pos = [[] for i in range(N_TAXIS)]
     taxis_on_node = [[] for i in range(N_NODES)]
     for i, line in enumerate(lines):
         nums = line.split()
         assert int(nums[1]) == len(nums) - 3
-        taxi_pos[i] = int(nums[2].split(',')[-1])
+        taxi_pos.append(int(nums[2].split(',')[-1]))
         taxis_on_node[taxi_pos[i]].append(i)
         for num in nums[3:]:
             taxi_passengers_pos[i].append(int(num.split(',')[-1]))
@@ -116,24 +105,67 @@ def nearest_node(lngt, lat):
     return ret
 
 
+POLYLINE = '''var polyline = new BMap.Polyline([
+    %s
+    ], {strokeWeight:'8',strokeOpacity: 0.8,strokeColor:"#18a45b",enableClicking: false});   //创建折线
+    map.addOverlay(polyline);   //增加折线
+    '''
+
+START_POINT = '''
+var point = new BMap.Point(%f, %f);
+map.centerAndZoom(point, 15);
+var marker = new BMap.Marker(point);  // 创建标注
+map.addOverlay(marker);               // 将标注添加到地图中
+marker.setAnimation(BMAP_ANIMATION_BOUNCE); //跳动的动画
+'''
+
+OTHER_POINT = '''
+var point = new BMap.Point(%f, %f);
+var marker = new BMap.Marker(point);  // 创建标注
+map.addOverlay(marker);               // 将标注添加到地图中
+'''
+
+TAXI_POINT = '''
+var pt = new BMap.Point(%f, %f);
+var myIcon = new BMap.Icon("https://cloud.tsinghua.edu.cn/f/5ba55f431f954d079953/?dl=1", new BMap.Size(40,18));
+var marker2 = new BMap.Marker(pt,{icon:myIcon});  // 创建标注
+map.addOverlay(marker2);              // 将标注添加到地图中
+'''
+
 if __name__ == '__main__':
     while True:
-        # line = input("Input 打车经纬度\n").split()
-        # src_lngt, src_lat, des_lngt, des_lat = map(float, line)
-        # src_lngt, src_lat, des_lngt, des_lat = 115, 38, 130, 50
-        # src_node = nearest_node(src_lngt, src_lat)
-        # des_node = nearest_node(des_lngt, des_lat)
-        src_node, des_node = 288218, 288220
-        taxis_rets = searchTaxi(src_node, des_node, 6)
+        line = input("Input 打车经纬度\n").split()
+        src_lngt, src_lat, des_lngt, des_lat = map(float, line)
+        src_node = nearest_node(src_lngt, src_lat)
+        des_node = nearest_node(des_lngt, des_lat)
+        taxis_rets = searchTaxi(src_node, des_node, 8)
         print('found taxis:')
         pprint(taxis_rets)
-        taxis = map(lambda x: x['id'], taxis_rets)
+        taxis = list(map(lambda x: x['id'], taxis_rets))
+        routes = []
         for taxi in taxis:
             passengers = taxi_passengers_pos[taxi].copy()
             passengers.append(des_node)
-            order = optimalOrderRoute(passengers, taxi)
-            order = [taxi, src_node] + order
-            for node in order:
-                print(nodes_geo[node])
-            route = wholePath(order)
-        break
+            order = optimalOrderRoute(passengers, taxi_pos[taxi])
+            order = [taxi_pos[taxi], src_node] + order
+            routes.append(wholePath(order))
+            # routes.append(order)
+        
+        with open('template.html') as f:
+            temp = f.read()
+            polylines = ''
+            for r in routes:
+                points = ''.join(
+                    [f'new BMap.Point({p[0]}, {p[1]}),' for p in nodes_geo[r]])
+                polylines += POLYLINE % points
+
+            page = temp
+            page += START_POINT % tuple(nodes_geo[src_node])
+            for taxi in taxis:
+                page += TAXI_POINT % tuple(nodes_geo[taxi_pos[taxi]])
+                for p in taxi_passengers_pos[taxi]:
+                    page += OTHER_POINT % tuple(nodes_geo[p])
+            page += polylines
+            page += '</script>'
+            with open('index.html', 'w') as fout:
+                fout.write(page)
