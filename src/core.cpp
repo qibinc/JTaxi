@@ -2783,7 +2783,7 @@ vector<int> taxi;
 vector<int> D1;
 vector<vector<int> > node_list;
 
-void loadCars()
+void loadCars(bool preprocessing)
 {
     int n = eH.size();
     node_list.resize(n);
@@ -2814,28 +2814,30 @@ void loadCars()
     fin.close();
     m = taxi.size();
     
-    // save
-    // D1.clear();
-    // cout << "Begin Calculation" << endl;
-    // ofstream fout(Car_File);
-    // for (int i = 0; i < m; ++ i) {
-    //     cout << i << endl;
-    //     int res = optimalOrder(passenger[i], taxi[i]);
-    //     D1.push_back(res);
-    //     fout << res << endl;
-    // }
-    // fout.close();
-
-    // load
-    D1.clear();
-    ifstream fin2(Car_File);
-    for (int i = 0; i < m; ++ i) {
-        int x;
-        fin2 >> x;
-        D1.push_back(x);
-        node_list[taxi[i]].push_back(i);
+    if (preprocessing) {
+        // save
+        D1.clear();
+        cout << "Begin Calculation" << endl;
+        ofstream fout(Car_File);
+        for (int i = 0; i < m; ++ i) {
+            cout << i << endl;
+            int res = optimalOrder(passenger[i], taxi[i]);
+            D1.push_back(res);
+            fout << res << endl;
+        }
+        fout.close();
+    } else {
+        // load
+        D1.clear();
+        ifstream fin2(Car_File);
+        for (int i = 0; i < m; ++ i) {
+            int x;
+            fin2 >> x;
+            D1.push_back(x);
+            node_list[taxi[i]].push_back(i);
+        }
+        fin2.close();
     }
-    fin2.close();
 }
 
 json searchTaxi(int S, int T, int K)
@@ -2905,22 +2907,30 @@ vector<int> wholePath(vector<int> nodes)
     return res;
 }
 
-int main()
+int main(int argc, char **argv)
 {
-    // TIME_TICK_START
-    // init();
-    // read();
-    // Additional_Memory=2*G.n*log2(G.n);
-    // printf("G.real_border:%d\n",G.real_node());
-    // tree.build();
-    // TIME_TICK_END
-    // TIME_TICK_PRINT("build")
-    // save();
+    // Preprocessing
+    bool preprocessing = (argc == 2);
+    if (preprocessing) {
+        TIME_TICK_START
+        init();
+        read();
+        Additional_Memory=2*G.n*log2(G.n);
+        printf("G.real_border:%d\n",G.real_node());
+        tree.build();
+        TIME_TICK_END
+        TIME_TICK_PRINT("build")
+        save();
+    }
 
     load();
     loadNode();
     loadEdge();
-    loadCars();
+    loadCars(preprocessing);
+
+    if (preprocessing) {
+        return 0;
+    }
 
     string line;
     while (getline(cin, line)) {
