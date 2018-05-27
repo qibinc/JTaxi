@@ -29,7 +29,7 @@
   - `int G_Tree::search(int S, int T)` 为返回两点间最短路径的距离，另外还有 `search_catch` 函数可以在多次连续查询时利用计算的缓存提高效率。
   - `int G_Tree::find_path(int S, int T, std::__1::vector<int> &order)` 为返回两点间最短路径经过的 node 的列表（存在 order 中）
 - 打车拼车部分
-  - `json searchTaxi(int S, int T, int K)` 为返回 K 辆去接从 S 到 T 的乘客的出租车。返回一个 json 变量，其为一个 K 个元素的列表，每个元素为找到的符合条件的一辆出租车的信息字典，key 包含 D1, D2, D3, D4` 的值，以及出租车的 id，以便调试与分析。用到了 BFS，即从 S 点出发向四周找车，以便能在最快时间内让用户上车
+  - `json searchTaxi(int S, int T, int K)` 为返回 K 辆去接从 S 到 T 的乘客的出租车。返回一个 json 变量，其为一个 K 个元素的列表，每个元素为找到的符合条件的一辆出租车的信息字典，key 包含 D1, D2, D3, D4 的值，以及出租车的 id，以便调试与分析。用到了 BFS，即从 S 点出发向四周找车，以便能在最快时间内让用户上车
   - `int optimalOrder(std::__1::vector<int> passengers_pos, int taxi_pos)` 函数，由于不同的接送顺序会产生不同距离的总路程，通过一个全排列来枚举，找到最优的乘客送达顺序下的总路程（也就是 D3），对应还有一个函数 `optimalOrderRoute`，这会返回这个最优路线，是为了尽可能减少不必要的操作而设计。与 `search`, `find_path` 的关系类似。
   - `std::__1::vector<int> wholePath(std::__1::vector<int> nodes)` 由于 `optimalOrderRoute` 返回乘客的送达顺序，并不能提供直接的导航，还需要调用 find_path 来找到完整的路径，`wholePath` 即实现这个功能的函数。
   - `int main(int argc, char **argv)` 加载预处理过的内容后，开始循环等待命令行的输入，为 python 提供函数接口
