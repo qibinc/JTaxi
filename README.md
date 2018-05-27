@@ -5,6 +5,7 @@ Tsinghua Database Final Project.
 ## Dependencies
 
 - [metis](http://glaros.dtc.umn.edu/gkhome/metis/metis/overview)
+- [JSON for Modern C++](https://github.com/nlohmann/json)
 - Python3.6, numpy
 
 ## Preprocessing
@@ -25,7 +26,7 @@ python search.py
 # Input
 # Example: Tsinghua to Summer Palace
 116.34189 40.014997 116.287223 40.00341
-# Then open index.html
+# Then open/refresh index.html
 ```
 
 - Note: first query may take a while since the `.data` files are being loaded. Later queries will be within 5 seconds.

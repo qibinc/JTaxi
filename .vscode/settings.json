@@ -33,6 +33,7 @@
         "ostream": "cpp",
         "__functional_base": "cpp",
         "memory": "cpp",
-        "tuple": "cpp"
+        "tuple": "cpp",
+        "algorithm": "cpp"
     }
 }
